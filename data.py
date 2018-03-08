@@ -333,7 +333,28 @@ class ComparisonClassifGen:
     def __init__(self):
         """Constructor."""
 
-    def generate_training_set(data, expression):
+    def generate_training_set(data):
+        """Generate a training set."""
+        X1_DATA = []
+        X2_DATA = []
+        Y_DATA = []
+        for i in range(0, len(data)):
+            pic1, exp1 = data[i]
+            for j in range(0, len(data)):
+                if j != i:
+                    pic2, exp2 = data[j]
+                    X1_DATA.append(pic1)
+                    X2_DATA.append(pic2)
+                    if exp1 is not exp2:
+                        Y_DATA.append(0)
+                    else:
+                        Y_DATA.append(1)
+        print("LEN X1_DATA : "+str(len(X1_DATA)))
+        X1 = np.array(X1_DATA)
+        X2 = np.array(X2_DATA)
+        return X1, X2, Y_DATA
+
+    def generate_monoclass_training_set(data, expression):
         """Generate a training set."""
         X1_DATA = []
         X2_DATA = []
