@@ -1,5 +1,4 @@
-"""Todo."""
-
+"""A list of Expression enums."""
 from enum import Enum
 
 
@@ -24,7 +23,11 @@ class Expression(Enum):
             return Expression(1)
         elif string.lower() == "fear":
             return Expression(2)
+        elif string.lower() == "afraid":
+            return Expression(2)
         elif string.lower() == "anger":
+            return Expression(3)
+        elif string.lower() == "angry":
             return Expression(3)
         elif string.lower() == "disgust":
             return Expression(4)

@@ -3,6 +3,9 @@ import random
 import numpy as np
 from fee.classification import Expression as Exp
 from keras.utils import to_categorical
+import glob
+import os
+import cv2
 
 
 class FlandmarksData:
@@ -374,3 +377,298 @@ class ComparisonClassifGen:
         X1 = np.array(X1_DATA)
         X2 = np.array(X2_DATA)
         return X1, X2, Y_DATA
+
+
+class SimpleClassGen:
+    """Generate simple set of data for DL models."""
+
+    def __init__(self):
+        """Contructor."""
+
+    def generate_sets_facenet(self, data, num_classes=None):
+        """
+        Generate the facenet models compatible sets.
+
+        data is a list of tuples (picture, class ID).
+        """
+        X = []
+        Y = []
+        for i in range(0, len(data)):
+            pic, exp = data[i]
+            pic = pic.astype('float32')
+            pic = pic / 255.0
+            pic = pic - 0.5
+            pic = pic * 2.0
+            # pic = np.expand_dims(pic, 0)
+            pic = np.expand_dims(pic, -1)
+            X.append(pic)
+            Y.append(exp)
+        X = np.asarray(X)
+        Y = to_categorical(Y, num_classes=num_classes)
+        return X, Y
+
+    def __get_indexes__(self, data, esc, si, ei, fc, r):
+        """Return an indexes list for get_formated_validation_set."""
+        indexes = []
+        if ei is None:
+            ei = data.get_flandmarks_length()
+        if fc is None:
+            fc = ei
+        # Get the indexes of equally spaced frame if necessary
+        if esc is not None:
+            indexes = np.linspace(si, ei-1, num=esc, dtype="int32")
+        # Otherwise fill indexes with the indexes (yeah, could be prettier)
+        else:
+            if reversed:
+                for i in range(ei-1, ei-fc-1, -1):
+                    indexes.append(i)
+            else:
+                for i in range(si, fc):
+                    indexes.append(i)
+        return indexes
+
+    def generate_video_sets_facenet(self, data, frame_limit):
+        """
+        Generate the facenet models compatible sets.
+
+        data is a list of tuples (picture, class ID).
+        """
+        X = []
+        Y = []
+        for i in range(0, len(data)):
+            pics, exp = data[i]
+            if len(pics[5:]) >= frame_limit:
+                pics = pics[5:]
+                # we get as many "frame_limit" long video as we can.
+                pos = len(pics) - 1
+                while(pos-20 >= 0):
+                    tmpX = []
+                    for j in range(pos, pos-20, -1):
+                        pic = pics[j]
+                        pic = pic.astype('float32')
+                        pic = pic / 255.0
+                        pic = pic - 0.5
+                        pic = pic * 2.0
+                        # pic = np.expand_dims(pic, 0)
+                        pic = np.expand_dims(pic, -1)
+                        tmpX.append(pic)
+                    tmpX = np.asarray(tmpX)
+                    X.append(tmpX)
+                    Y.append(exp)
+                    pos -= 5
+        unique, counts = np.unique(Y, return_counts=True)
+        print(dict(zip(unique, counts)))
+        X = np.asarray(X)
+        print(X.shape)
+        Y = to_categorical(Y)
+        return X, Y
+
+
+class PicturesDataset:
+    """Datatset loading and sorting pictures from different folders."""
+
+    def __init__(self, folderpath):
+        """Constructor."""
+        self.__trainingpath__ = None
+        self.__evaluatepath__ = None
+        self.__expressions__ = []
+        self.__trainingset__ = {}
+        self.__evaluateset__ = {}
+        subfolders = os.listdir(folderpath)
+        # Check for trailing '/'
+        if folderpath[-1:] != '/':
+            folderpath += '/'
+        self.__trainingpath__ = folderpath
+        # If we got the training & evaluate subfolders
+        if "training" in subfolders:
+            self.__trainingpath__ = folderpath+"training/"
+            if "evaluate" in subfolders:
+                self.__evaluatepath__ = folderpath+"evaluate/"
+        # get the classes
+        exps = os.listdir(self.__trainingpath__)
+        for i, e in enumerate(exps):
+            if Exp.from_str(e) is None:
+                print("Unknown expression: "+e)
+            else:
+                self.__expressions__.append(Exp.from_str(e))
+        # Init the sets
+        for i, e in enumerate(self.__expressions__):
+            self.__trainingset__[e] = []
+            self.__evaluateset__[e] = []
+
+    def load_pictures(self):
+        """Load pictures from the tree structure."""
+        exps = os.listdir(self.__trainingpath__)
+        for i, e in enumerate(exps):
+            print(e)
+            if Exp.from_str(e) is None:
+                print("Unknown expression: "+e)
+            else:
+                exp = Exp.from_str(e)
+                path = self.__trainingpath__+e+'/'
+                source_map = open(path+"map.csv")
+                line = source_map.readline()    # First line, headers, ignore.
+                line = source_map.readline()
+                while line != '':
+                    line = line.split(',')
+                    pic = cv2.imread(line[1].replace('\n', ''))
+                    pic = cv2.cvtColor(pic, cv2.COLOR_BGR2GRAY)
+                    self.__trainingset__[exp].append((pic, line[0]))
+                    line = source_map.readline()
+        if self.__evaluatepath__ is not None:
+            exps = os.listdir(self.__evaluatepath__)
+            for i, e in enumerate(exps):
+                if Exp.from_str(e) is None:
+                    print("Unknown expression: "+e)
+                else:
+                    exp = Exp.from_str(e)
+                    path = self.__evaluatepath__+e+'/'
+                    for id, f in enumerate(glob.glob(os.path.join(path,
+                                                                  "*.jpg"))):
+                        source_map = open(path+"map.csv")
+                        line = source_map.readline()
+                        line = source_map.readline()
+                        while line != '':
+                            line = line.split(',')
+                            pic = cv2.imread(line[1].replace('\n', ''))
+                            pic = cv2.cvtColor(pic, cv2.COLOR_BGR2GRAY)
+                            self.__evaluateset__[exp].append((pic, line[0]))
+                            line = source_map.readline()
+
+    def shuffle(self):
+        """Shuffle the sets."""
+        for i, e in enumerate(self.__trainingset__):
+            random.shuffle(self.__trainingset__[e])
+
+    def split_set(self, count):
+        """Split the training set to fill the evaluate set."""
+        for i, e in enumerate(self.__trainingset__):
+            self.__evaluateset__[e] = self.__trainingset__[e][0:count]
+            self.__trainingset__[e] = self.__trainingset__[e][count:]
+
+    def get_pics(self, set="training", expressions=None, get_filepaths=False):
+        """
+        Return tuples (pictures, class ID).
+
+        Class Id is according position in __expressions__.
+        """
+        result = []
+        filepaths = []
+        pics = self.__trainingset__
+        if expressions is None:
+            expressions = self.__expressions__
+        if set != "training":
+            pics = self.__evaluateset__
+        for i, e in enumerate(pics):
+            if e in expressions:
+                for j in range(0, len(pics[e])):
+                    pic, file = pics[e][j]
+                    result.append((pic, expressions.index(e)))
+                    if get_filepaths:
+                        filepaths.append(file)
+        if get_filepaths:
+            return result, filepaths
+        return result
+
+
+class VideosDataset:
+    """Datatset loading and sorting videos from different folders."""
+
+    def __init__(self, folderpath):
+        """Constructor."""
+        self.__trainingpath__ = None
+        self.__evaluatepath__ = None
+        self.__expressions__ = []
+        self.__trainingset__ = {}
+        self.__evaluateset__ = {}
+        subfolders = os.listdir(folderpath)
+        # Check for trailing '/'
+        if folderpath[-1:] != '/':
+            folderpath += '/'
+        self.__trainingpath__ = folderpath
+        # If we got the training & evaluate subfolders
+        if "training" in subfolders:
+            self.__trainingpath__ = folderpath+"training/"
+            if "evaluate" in subfolders:
+                self.__evaluatepath__ = folderpath+"evaluate/"
+        # get the classes
+        exps = os.listdir(self.__trainingpath__)
+        for i, e in enumerate(exps):
+            if Exp.from_str(e) is None:
+                print("Unknown expression: "+e)
+            else:
+                self.__expressions__.append(Exp.from_str(e))
+        # Init the sets
+        for i, e in enumerate(self.__expressions__):
+            self.__trainingset__[e] = []
+            self.__evaluateset__[e] = []
+
+    def load_videos(self):
+        """Load pictures from the tree structure."""
+        exps = os.listdir(self.__trainingpath__)
+        for i, e in enumerate(exps):
+            if Exp.from_str(e) is None:
+                print("Unknown expression: "+e)
+            else:
+                exp = Exp.from_str(e)
+                path = self.__trainingpath__+e+'/'
+                for id, f in enumerate(glob.glob(os.path.join(path, "*.avi"))):
+                    pics = []
+                    cap = cv2.VideoCapture(f, cv2.CAP_FFMPEG)
+                    while(cap.isOpened()):
+                        ret, frame = cap.read()
+                        if ret:
+                            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                            pics.append(frame)
+                        else:
+                            cap.release()
+                    self.__trainingset__[exp].append(pics)
+        if self.__evaluatepath__ is not None:
+            exps = os.listdir(self.__evaluatepath__)
+            for i, e in enumerate(exps):
+                if Exp.from_str(e) is None:
+                    print("Unknown expression: "+e)
+                else:
+                    exp = Exp.from_str(e)
+                    path = self.__evaluatepath__+e+'/'
+                    for id, f in enumerate(glob.glob(os.path.join(path,
+                                                                  "*.avi"))):
+                        pics = []
+                        cap = cv2.VideoCapture(f, cv2.CAP_FFMPEG)
+                        while(cap.isOpened()):
+                            ret, frame = cap.read()
+                            if ret:
+                                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                                pics.append(frame)
+                            else:
+                                cap.release()
+                        self.__trainingset__[exp].append(pics)
+
+    def shuffle(self):
+        """Shuffle the sets."""
+        for i, e in enumerate(self.__trainingset__):
+            random.shuffle(self.__trainingset__[e])
+
+    def split_set(self, count):
+        """Split the training set to fill the evaluate set."""
+        for i, e in enumerate(self.__trainingset__):
+            self.__evaluateset__[e] = self.__trainingset__[e][0:count]
+            self.__trainingset__[e] = self.__trainingset__[e][count:]
+
+    def get_videos(self, set="training", expressions=None):
+        """
+        Return tuples (pictures, class ID).
+
+        Class Id is according position in __expressions__.
+        """
+        result = []
+        pics = self.__trainingset__
+        if expressions is None:
+            expressions = self.__expressions__
+        if set != "training":
+            pics = self.__evaluateset__
+        for i, e in enumerate(pics):
+            for j in range(0, len(pics[e])):
+                result.append((pics[e][j],
+                               expressions.index(e)))
+        return result

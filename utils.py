@@ -22,6 +22,7 @@
 # M = cv2.getRotationMatrix2D((cols/2, rows/2), angle, 1)
 # dst = cv2.warpAffine(res, M, (cols, rows))
 
+import sys
 import math
 
 def normalize_landmarks_points(points):
@@ -44,47 +45,21 @@ def normalize_landmarks_points(points):
     return result
 
 
-def get_bounds(points):
-    """Return the bounds of a points cloud."""
-    minX = maxX = points[0]
-    minY = maxY = points[1]
-    i = 2
-    while i < len(points):
-        if points[i] < minX:
-            minX = points[i]
-        elif points[i] > maxX:
-            maxX = points[i]
-        if points[i + 1] < minY:
-            minY = points[i + 1]
-        elif points[i + 1] > maxY:
-            maxY = points[i + 1]
-        i = i + 2
-    return {"left": minX,
-            "width": maxX-minX,
-            "top": minY,
-            "height": maxY-minY}
-
-
-def center_points(points, bounds, padding=4):
-    """Center the points according to the bounding box."""
-    id = 0
-    result = []
-    while id < len(points):
-        # Position - Bounds + Frame Border
-        result.append(points[id] - bounds["left"] + padding)
-        result.append(points[id + 1] - bounds["top"] + padding)
-        id = id + 2
-    return result
-
-
-def rescale_points(src, bounds, dest, padding=4):
-    """Rescale the points from the bounds to the dest."""
-    points = []
-    rx = dest["width"] / (bounds["width"]+padding*2)
-    ry = dest["height"] / (bounds["height"]+padding*2)
-    i = 0
-    while i < len(src):
-        points.append(math.floor(src[i] * rx))
-        points.append(math.floor(src[i + 1] * ry))
-        i = i + 2
-    return points
+def print_processing(completion):
+    """Print a loading bar."""
+    percent = int(completion * 100)
+    s = ''
+    if percent < 10:
+        s += '  '
+    elif percent < 100:
+        s += ' '
+    s += ' '+str(percent)+'% ['
+    for i in range(0, 60):
+        if i <= int(completion * 60):
+            s += '#'
+        else:
+            s += ' '
+    s += ']'
+    sys.stdout.write('\r')
+    sys.stdout.flush()
+    print(s, sep='', end='', flush=True)

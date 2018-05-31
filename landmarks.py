@@ -37,17 +37,32 @@ class FLandmarks:
         self.__centroid__ = []
         self.__bounds__ = None
 
+    def extract_points(self, image, predictor, predictorpath=""):
+        """Extract the landmarks points for the first face detected.
+
+        Return an array of shapes (see dlib) aka the landmarks points.
+        """
+        if predictor is None:
+            if predictorpath == "":
+                filepath = os.path.realpath(__file__)
+                predictorpath = filepath[:-12] + "sp68fl.dat"
+            predictor = dlib.shape_predictor(predictorpath)
+        # Use a frontal face detector to retrieve the faces
+        detector = dlib.get_frontal_face_detector()
+        faces = detector(image, 0)
+        if len(faces) != 0:
+            shape = predictor(image, faces[0])
+            for idx in range(0, 68):
+                self.__points__.append(shape.part(idx).x)
+                self.__points__.append(shape.part(idx).y)
+            self.__calculate_bounds__()
+            self.__calculate_centroid__()
+
     def set_points(self, points):
         """Copy points in to self.__points__."""
         self.__points__ = list(points)
-        i = sumX = sumY = 0
-        while i < len(points):
-            sumX += points[i]
-            sumY += points[i+1]
-            i += 2
-        self.__centroid__ = [2*sumX/len(points),
-                             2*sumY/len(points)]
-        self.__bounds__ = fu.get_bounds(self.__points__)
+        self.__calculate_bounds__()
+        self.__calculate_centroid__()
 
     def get_l2bf(self):
         """Return an array of 'landmark to barycenter features'."""
@@ -84,7 +99,6 @@ class FLandmarks:
             i += 2
         return l2bf
 
-    # @profile(precision=8)
     def get_frame(self, FW, FH, FC=True, OPP=False):
         """Return a minimal image built with the points."""
         pts = []
@@ -104,25 +118,70 @@ class FLandmarks:
         else:
             return fviz.get_one_color_pix_image(pts, FW, FH)
 
+    def __calculate_bounds__(self):
+        """Calculate the bounds of the __points__."""
+        points = self.__points__
+        minX = maxX = points[0]
+        minY = maxY = points[1]
+        i = 2
+        while i < len(points):
+            if points[i] < minX:
+                minX = points[i]
+            elif points[i] > maxX:
+                maxX = points[i]
+            if points[i + 1] < minY:
+                minY = points[i + 1]
+            elif points[i + 1] > maxY:
+                maxY = points[i + 1]
+            i = i + 2
+        self.__bounds__ = {"left": minX,
+                           "width": maxX-minX,
+                           "top": minY,
+                           "height": maxY-minY}
 
-def get_landmark_points(image, predictor, predictorpath=""):
-    """Extract the landmarks points for each faces.
+    def __calculate_centroid__(self):
+        """Calculate the centroid of the __points__."""
+        points = self.__points__
+        i = sumX = sumY = 0
+        while i < len(points):
+            sumX += points[i]
+            sumY += points[i+1]
+            i += 2
+        self.__centroid__ = [2*sumX/len(points),
+                             2*sumY/len(points)]
 
-    Return an array of shapes (see dlib) aka the landmarks points.
-    """
-    if predictor is None:
-        if predictorpath == "":
-            filepath = os.path.realpath(__file__)
-            predictorpath = filepath[:-12] + "sp68fl.dat"
-        predictor = dlib.shape_predictor(predictorpath)
-    # Use a frontal face detector to retrieve the faces
-    detector = dlib.get_frontal_face_detector()
-    faces = detector(image, 0)
-    lm = []
-    for k, d in enumerate(faces):
-        shape = predictor(image, d)
-        lm.append(shape)
-    return lm
+    def get_centered_points(self, bounds, padding=4):
+        """Center the points according to the bounding box."""
+        id = 0
+        result = []
+        points = self.__points__
+        while id < len(points):
+            # Position - Bounds + Frame Border
+            result.append(points[id] - bounds["left"] + padding)
+            result.append(points[id + 1] - bounds["top"] + padding)
+            id = id + 2
+        return result
+
+    def get_rescaled_points(self, bounds, dest, padding=4):
+        """Rescale the points from the bounds to the dest."""
+        points = self.__points__
+        result = []
+        rx = dest["width"] / (bounds["width"]+padding*2)
+        ry = dest["height"] / (bounds["height"]+padding*2)
+        i = 0
+        while i < len(points):
+            result.append(math.floor(points[i] * rx))
+            result.append(math.floor(points[i + 1] * ry))
+            i = i + 2
+        return result
+
+    def get_bounds(self):
+        """Return __bounds__."""
+        return self.__bounds__
+
+    def get_all_points(self):
+        """Return __points__."""
+        return self.__points__
 
 
 def __get_points__(landmarks, min, max, normalized, flat):
