@@ -1,0 +1,18 @@
+# Cnn Results 
+source	arget,anger,disgust,fear,happiness,sadness,surprise,neutral
+anger,71.3,0.0,6.83,10.1,1.42,10.35,0.0
+disgust,5.43,3.2,22.59,46.26,3.89,18.63,0.0
+fear,36.82,0.0,20.66,15.2,13.35,13.97,0.0
+happiness,8.18,0.16,7.21,74.32,1.58,8.55,0.0
+sadness,50.49,0.0,14.19,6.73,4.5,24.08,0.0
+surprise,30.64,0.0,21.52,14.52,2.57,30.75,0.0
+neutral,67.99,1.75,9.3,20.51,0.44,0.0,0.0
+# Reviewers Results 
+source	arget,anger,disgust,fear,happiness,sadness,surprise,neutral
+anger,46.38,8.7,7.25,2.17,10.14,4.35,21.01
+disgust,1.74,78.26,9.57,5.22,0.0,4.35,0.87
+fear,6.52,3.99,47.46,0.36,10.87,21.74,9.06
+happiness,0.8,2.4,3.2,77.12,3.2,8.93,4.35
+sadness,5.98,3.26,11.96,5.98,51.09,5.98,15.76
+surprise,5.07,5.22,12.9,4.78,1.45,64.06,6.52
+neutral,11.6,2.9,24.64,1.45,13.04,1.45,44.93
